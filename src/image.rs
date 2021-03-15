@@ -703,21 +703,17 @@ pub struct Pixels<'a, I: ?Sized + 'a> {
 impl<'a, I: GenericImageView> Iterator for Pixels<'a, I> {
     type Item = (u32, u32, I::Pixel);
 
-    fn next(&mut self) -> Option<(u32, u32, I::Pixel)> {
+    fn next(&mut self) -> Option<Self::Item> {
         if self.x >= self.width {
             self.x = 0;
             self.y += 1;
         }
 
-        if self.y >= self.height {
-            None
-        } else {
-            let pixel = self.image.get_pixel(self.x, self.y);
-            let p = (self.x, self.y, pixel);
-
+        if let Some(pixel) = self.image.get_pixel(self.x, self.y) {
             self.x += 1;
-
-            Some(p)
+            Some((self.x, self.y, pixel))
+        } else {
+            None
         }
     }
 }
@@ -763,13 +759,7 @@ pub trait GenericImageView {
     }
 
     /// Returns the pixel located at (x, y). Indexed from top left.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    ///
-    /// TODO: change this signature to &P
-    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel;
+    fn get_pixel(&self, x: u32, y: u32) -> Option<Self::Pixel>;
 
     /// Returns the pixel located at (x, y). Indexed from top left.
     ///
@@ -780,7 +770,7 @@ pub trait GenericImageView {
     ///
     /// [`in_bounds`]: #method.in_bounds
     unsafe fn unsafe_get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
-        self.get_pixel(x, y)
+        self.get_pixel(x, y).unwrap()
     }
 
     /// Returns an Iterator over the pixels of this image.
@@ -817,11 +807,7 @@ pub trait GenericImage: GenericImageView {
     type InnerImage: GenericImage<Pixel = Self::Pixel>;
 
     /// Gets a reference to the mutable pixel at location `(x, y)`. Indexed from top left.
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of bounds.
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel;
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel>;
 
     /// Put a pixel at location (x, y). Indexed from top left.
     ///
@@ -876,7 +862,10 @@ pub trait GenericImage: GenericImageView {
 
         for k in 0..other.height() {
             for i in 0..other.width() {
-                let p = other.get_pixel(i, k);
+                let p = other.get_pixel(i, k)
+                    .ok_or_else(|| ImageError::Parameter(ParameterError::from_kind(
+                    ParameterErrorKind::DimensionMismatch,
+                )))?;
                 self.put_pixel(i + x, k + y, p);
             }
         }
@@ -909,7 +898,11 @@ pub trait GenericImage: GenericImageView {
                     for x in $xiter {
                         let sx = sx + x;
                         let dx = dx + x;
-                        let pixel = self.get_pixel(sx, sy);
+                        let pixel = if let Some(p) = self.get_pixel(sx, sy) {
+                            p
+                        } else {
+                            return false;
+                        };
                         self.put_pixel(dx, dy, pixel);
                     }
                 }
@@ -994,7 +987,7 @@ impl<I> SubImage<I> {
 
         for y in 0..self.ystride {
             for x in 0..self.xstride {
-                let p = borrowed.get_pixel(x + self.xoffset, y + self.yoffset);
+                let p = borrowed.get_pixel(x + self.xoffset, y + self.yoffset).unwrap();
                 out.put_pixel(x, y, p);
             }
         }
@@ -1020,7 +1013,7 @@ where
         (self.xoffset, self.yoffset, self.xstride, self.ystride)
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+    fn get_pixel(&self, x: u32, y: u32) -> Option<Self::Pixel> {
         self.image.get_pixel(x + self.xoffset, y + self.yoffset)
     }
 
@@ -1043,7 +1036,7 @@ where
 {
     type InnerImage = I::Target;
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel> {
         self.image.get_pixel_mut(x + self.xoffset, y + self.yoffset)
     }
 
@@ -1090,18 +1083,18 @@ mod tests {
     fn test_image_alpha_blending() {
         let mut target = ImageBuffer::new(1, 1);
         target.put_pixel(0, 0, Rgba([255u8, 0, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([255, 0, 0, 255]));
+        assert!(target.get_pixel(0, 0) == Some(Rgba([255, 0, 0, 255])));
         target.blend_pixel(0, 0, Rgba([0, 255, 0, 255]));
-        assert!(*target.get_pixel(0, 0) == Rgba([0, 255, 0, 255]));
+        assert!(target.get_pixel(0, 0) == Some(Rgba([0, 255, 0, 255])));
 
         // Blending an alpha channel onto a solid background
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([127, 127, 0, 255]));
+        assert!(target.get_pixel(0, 0) == Some(Rgba([127, 127, 0, 255])));
 
         // Blending two alpha channels
         target.put_pixel(0, 0, Rgba([0, 255, 0, 127]));
         target.blend_pixel(0, 0, Rgba([255, 0, 0, 127]));
-        assert!(*target.get_pixel(0, 0) == Rgba([169, 85, 0, 190]));
+        assert!(target.get_pixel(0, 0) == Some(Rgba([169, 85, 0, 190])));
     }
 
     #[test]
@@ -1143,13 +1136,13 @@ mod tests {
             sub2.put_pixel(0, 0, Rgba([0, 0, 0, 0]));
         }
 
-        assert_eq!(*source.get_pixel(1, 1), Rgba([0, 0, 0, 0]));
+        assert_eq!(source.get_pixel(1, 1), Some(Rgba([0, 0, 0, 0])));
 
         let view1 = source.view(0, 0, 2, 2);
-        assert_eq!(*source.get_pixel(1, 1), view1.get_pixel(1, 1));
+        assert_eq!(source.get_pixel(1, 1), view1.get_pixel(1, 1));
 
         let view2 = view1.view(1, 1, 1, 1);
-        assert_eq!(*source.get_pixel(1, 1), view2.get_pixel(0, 0));
+        assert_eq!(source.get_pixel(1, 1), view2.get_pixel(0, 0));
     }
 
     #[test]

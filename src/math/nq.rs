@@ -63,7 +63,7 @@
 /// // the original colors, so even in this simple example the output is not pixel equivalent to
 /// // the original.
 /// let mapped = ImageBuffer::from_fn(w, h, |x, y| -> Rgba<u8> {
-///     let p = palletized.get_pixel(x, y);
+///     let p = palletized.get_pixel(x, y).unwrap();
 ///     cmap.lookup(p.0[0] as usize)
 ///         .expect("indexed color out-of-range")
 ///         .into()

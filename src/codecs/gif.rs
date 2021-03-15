@@ -95,7 +95,7 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
         assert_eq!(u64::try_from(buf.len()), Ok(self.total_bytes()));
 
         let frame = match self.reader.next_frame_info()
-            .map_err(ImageError::from_decoding)? {                
+            .map_err(ImageError::from_decoding)? {
             Some(frame) => FrameInfo::new_from_frame(frame),
             None => {
                 return Err(ImageError::Parameter(ParameterError::from_kind(
@@ -140,8 +140,8 @@ impl<'a, R: 'a + Read> ImageDecoder<'a> for GifDecoder<R> {
                 let frame_x = x.wrapping_sub(frame.left);
                 let frame_y = y.wrapping_sub(frame.top);
 
-                if frame_x < frame.width && frame_y < frame.height {
-                    *pixel = *frame_buffer.get_pixel(frame_x, frame_y);
+                if let Some(frame_buffer_pixel) = frame_buffer.get_pixel(frame_x, frame_y) {
+                    *pixel = frame_buffer_pixel;
                 } else {
                     // this is only necessary in case the buffer is not zeroed
                     *pixel = Rgba([0, 0, 0, 0]);
@@ -261,8 +261,9 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
         let image_buffer = if (frame.left, frame.top) == (0, 0)
                 && (self.width, self.height) == frame_buffer.dimensions() {
             for (x, y, pixel) in frame_buffer.enumerate_pixels_mut() {
-                let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
-                blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
+                if let Some(previous_pixel) = self.non_disposed_frame.get_pixel_mut(x, y) {
+                    blend_and_dispose_pixel(frame.disposal_method, previous_pixel, pixel);
+                }
             }
             frame_buffer
         } else {
@@ -270,14 +271,16 @@ impl<R: Read> Iterator for GifFrameIterator<R> {
                 let frame_x = x.wrapping_sub(frame.left);
                 let frame_y = y.wrapping_sub(frame.top);
                 let previous_pixel = self.non_disposed_frame.get_pixel_mut(x, y);
+                let frame_buffer_pixel = frame_buffer.get_pixel(frame_x, frame_y);
 
-                if frame_x < frame_buffer.width() && frame_y < frame_buffer.height() {
-                    let mut pixel = *frame_buffer.get_pixel(frame_x, frame_y);
-                    blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
-                    pixel
-                } else {
-                    // out of bounds, return pixel from previous frame
-                    *previous_pixel
+                match (previous_pixel, frame_buffer_pixel) {
+                    (Some(previous_pixel), Some(frame_buffer_pixel)) => {
+                        let mut pixel = frame_buffer_pixel;
+                        blend_and_dispose_pixel(frame.disposal_method, previous_pixel, &mut pixel);
+                        pixel
+                    }
+                    (Some(previous_pixel), None) => *previous_pixel,
+                    _ => Rgba([0, 0, 0, 0])
                 }
             })
         };

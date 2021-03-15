@@ -1262,16 +1262,6 @@ fn panic_cwh_out_of_bounds(
     panic!("Sample coordinates {:?} out of sample matrix bounds {:?} with strides {:?}", (c, x, y), bounds, strides)
 }
 
-// The out-of-bounds panic for pixel access similar to `slice::index`.
-#[inline(never)]
-#[cold]
-fn panic_pixel_out_of_bounds(
-    (x, y): (u32, u32),
-    bounds: (u32, u32)) -> !
-{
-    panic!("Image index {:?} out of bounds {:?}", (x, y), bounds)
-}
-
 impl<Buffer> Index<(u8, u32, u32)> for FlatSamples<Buffer>
     where Buffer: Index<usize>
 {
@@ -1331,9 +1321,9 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
         x < w && y < h
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+    fn get_pixel(&self, x: u32, y: u32) -> Option<Self::Pixel> {
         if !self.inner.in_bounds(0, x, y) {
-            panic_pixel_out_of_bounds((x, y), self.dimensions())
+            return None;
         }
 
         let image = self.inner.samples.as_ref();
@@ -1346,7 +1336,11 @@ impl<Buffer, P: Pixel> GenericImageView for View<Buffer, P>
             *to = image[index];
         });
 
-        *P::from_slice(&buffer[..channels])
+        if let Some(p) = buffer.get(..channels) {
+            Some(*P::from_slice(p))
+        } else {
+            None
+        }
     }
 
     fn inner(&self) -> &Self {
@@ -1376,9 +1370,9 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
         x < w && y < h
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> Self::Pixel {
+    fn get_pixel(&self, x: u32, y: u32) -> Option<Self::Pixel> {
         if !self.inner.in_bounds(0, x, y) {
-            panic_pixel_out_of_bounds((x, y), self.dimensions())
+            return None;
         }
 
         let image = self.inner.samples.as_ref();
@@ -1391,7 +1385,11 @@ impl<Buffer, P: Pixel> GenericImageView for ViewMut<Buffer, P>
             *to = image[index];
         });
 
-        *P::from_slice(&buffer[..channels])
+        if let Some(p) = buffer.get(..channels) {
+            Some(*P::from_slice(p))
+        } else {
+            None
+        }
     }
 
     fn inner(&self) -> &Self {
@@ -1404,23 +1402,31 @@ impl<Buffer, P: Pixel> GenericImage for ViewMut<Buffer, P>
 {
     type InnerImage = Self;
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut Self::Pixel {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut Self::Pixel> {
         if !self.inner.in_bounds(0, x, y) {
-            panic_pixel_out_of_bounds((x, y), self.dimensions())
+            return None;
         }
 
         let base_index = self.inner.in_bounds_index(0, x, y);
         let channel_count = <P as Pixel>::CHANNEL_COUNT as usize;
         let pixel_range = base_index..base_index + channel_count;
-        P::from_slice_mut(&mut self.inner.samples.as_mut()[pixel_range])
+        if let Some(range) = self.inner.samples.as_mut().get_mut(pixel_range) {
+            Some(P::from_slice_mut(range))
+        } else {
+            None
+        }
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        *self.get_pixel_mut(x, y) = pixel;
+        if let Some(p) = self.get_pixel_mut(x, y) {
+            *p = pixel;
+        }
     }
 
     fn blend_pixel(&mut self, x: u32, y: u32, pixel: Self::Pixel) {
-        self.get_pixel_mut(x, y).blend(&pixel);
+        if let Some(p) = self.get_pixel_mut(x, y) {
+            p.blend(&pixel);
+        }
     }
 
     fn inner_mut(&mut self) -> &mut Self {
@@ -1534,7 +1540,7 @@ mod tests {
        let view = buffer.as_view::<Rgb<usize>>()
            .expect("This is a valid view");
        let pixel_count = view.pixels()
-           .inspect(|pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
+           .inspect(|&pixel| assert!(pixel.2 == Rgb([42, 42, 42])))
            .count();
        assert_eq!(pixel_count, 100*100);
     }
@@ -1559,7 +1565,9 @@ mod tests {
                 .expect("This should be a valid mutable buffer");
             assert_eq!(view.dimensions(), (3, 3));
             for i in 0..9 {
-                *view.get_pixel_mut(i % 3, i / 3) = LumaA([2 * i as usize, 2 * i as usize + 1]);
+                if let Some(v) = view.get_pixel_mut(i % 3, i / 3) {
+                    *v = LumaA([2 * i as usize, 2 * i as usize + 1]);
+                }
             }
         }
 

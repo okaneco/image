@@ -24,7 +24,7 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let p = image.get_pixel(x, y).to_luma();
+            let p = image.get_pixel(x, y).unwrap().to_luma();
             out.put_pixel(x, y, p);
         }
     }
@@ -39,7 +39,7 @@ pub fn invert<I: GenericImage>(image: &mut I) {
 
     for y in 0..height {
         for x in 0..width {
-            let mut p = image.get_pixel(x, y);
+            let mut p = image.get_pixel(x, y).unwrap();
             p.invert();
 
             image.put_pixel(x, y, p);
@@ -68,7 +68,7 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let f = image.get_pixel(x, y).map(|b| {
+            let f = image.get_pixel(x, y).unwrap().map(|b| {
                 let c: f32 = NumCast::from(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent + 0.5) * max;
@@ -102,7 +102,7 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let f = image.get_pixel(x, y).map(|b| {
+            let f = image.get_pixel(x, y).unwrap().map(|b| {
                 let c: f32 = NumCast::from(b).unwrap();
 
                 let d = ((c / max - 0.5) * percent + 0.5) * max;
@@ -135,7 +135,7 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
+            let e = image.get_pixel(x, y).unwrap().map_with_alpha(
                 |b| {
                     let c: i32 = NumCast::from(b).unwrap();
                     let d = clamp(c + value, 0, max);
@@ -168,7 +168,7 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let e = image.get_pixel(x, y).map_with_alpha(
+            let e = image.get_pixel(x, y).unwrap().map_with_alpha(
                 |b| {
                     let c: i32 = NumCast::from(b).unwrap();
                     let d = clamp(c + value, 0, max);
@@ -217,7 +217,7 @@ where
         0.072 + cosv * 0.928 + sinv * 0.072,
     ];
     for (x, y, pixel) in out.enumerate_pixels_mut() {
-        let p = image.get_pixel(x, y);
+        let p = image.get_pixel(x, y).unwrap();
         let (k1, k2, k3, k4) = p.channels4();
         let vec: (f64, f64, f64, f64) = (
             NumCast::from(k1).unwrap(),
@@ -277,7 +277,7 @@ where
     ];
     for y in 0..height {
         for x in 0..width {
-            let pixel = image.get_pixel(x, y);
+            let pixel = image.get_pixel(x, y).unwrap();
             let (k1, k2, k3, k4) = pixel.channels4();
             let vec: (f64, f64, f64, f64) = (
                 NumCast::from(k1).unwrap(),
@@ -342,7 +342,7 @@ pub trait ColorMap {
 /// let cmap = BiLevel;
 /// let palletized = index_colors(&gray, &cmap);
 /// let mapped = ImageBuffer::from_fn(w, h, |x, y| {
-///     let p = palletized.get_pixel(x, y);
+///     let p = palletized.get_pixel(x, y).unwrap();
 ///     cmap.lookup(p.0[0] as usize)
 ///         .expect("indexed color out-of-range")
 /// });
@@ -457,8 +457,8 @@ fn diffuse_err<P: Pixel<Subpixel = u8>>(pixel: &mut P, error: [i16; 3], factor: 
 macro_rules! do_dithering(
     ($map:expr, $image:expr, $err:expr, $x:expr, $y:expr) => (
         {
-            let old_pixel = $image[($x, $y)];
-            let new_pixel = $image.get_pixel_mut($x, $y);
+            let old_pixel = $image.get_pixel($x, $y).unwrap();
+            let new_pixel = $image.get_pixel_mut($x, $y).unwrap();
             $map.map_color(new_pixel);
             for ((e, &old), &new) in $err.iter_mut()
                                         .zip(old_pixel.channels().iter())
@@ -482,28 +482,28 @@ where
     for y in 0..height - 1 {
         let x = 0;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
-        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
-        diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
+        diffuse_err(image.get_pixel_mut(x + 1, y).unwrap(), err, 7);
+        diffuse_err(image.get_pixel_mut(x, y + 1).unwrap(), err, 5);
+        diffuse_err(image.get_pixel_mut(x + 1, y + 1).unwrap(), err, 1);
         for x in 1..width - 1 {
             do_dithering!(color_map, image, err, x, y);
-            diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
-            diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
-            diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
-            diffuse_err(image.get_pixel_mut(x + 1, y + 1), err, 1);
+            diffuse_err(image.get_pixel_mut(x + 1, y).unwrap(), err, 7);
+            diffuse_err(image.get_pixel_mut(x - 1, y + 1).unwrap(), err, 3);
+            diffuse_err(image.get_pixel_mut(x, y + 1).unwrap(), err, 5);
+            diffuse_err(image.get_pixel_mut(x + 1, y + 1).unwrap(), err, 1);
         }
         let x = width - 1;
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x - 1, y + 1), err, 3);
-        diffuse_err(image.get_pixel_mut(x, y + 1), err, 5);
+        diffuse_err(image.get_pixel_mut(x - 1, y + 1).unwrap(), err, 3);
+        diffuse_err(image.get_pixel_mut(x, y + 1).unwrap(), err, 5);
     }
     let y = height - 1;
     let x = 0;
     do_dithering!(color_map, image, err, x, y);
-    diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+    diffuse_err(image.get_pixel_mut(x + 1, y).unwrap(), err, 7);
     for x in 1..width - 1 {
         do_dithering!(color_map, image, err, x, y);
-        diffuse_err(image.get_pixel_mut(x + 1, y), err, 7);
+        diffuse_err(image.get_pixel_mut(x + 1, y).unwrap(), err, 7);
     }
     let x = width - 1;
     do_dithering!(color_map, image, err, x, y);

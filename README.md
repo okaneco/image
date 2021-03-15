@@ -100,7 +100,7 @@ let (width, height) = img.dimensions();
 let pixel = img[(100, 100)];
 
 // Or use the `get_pixel` method from the `GenericImage` trait.
-let pixel = *img.get_pixel(100, 100);
+let pixel = img.get_pixel(100, 100).unwrap();
 
 // Put a pixel at coordinate (100, 100).
 img.put_pixel(100, 100, pixel);
@@ -223,7 +223,7 @@ fn main() {
                 i += 1;
             }
 
-            let pixel = imgbuf.get_pixel_mut(x, y);
+            let pixel = imgbuf.get_pixel_mut(x, y).unwrap();
             let image::Rgb(data) = *pixel;
             *pixel = image::Rgb([data[0], i as u8, data[2]]);
         }

@@ -159,8 +159,8 @@ where
 
     for top_y in 0..range_height {
         for top_x in 0..range_width {
-            let p = top.get_pixel(top_x, top_y);
-            let mut bottom_pixel = bottom.get_pixel(x + top_x, y + top_y);
+            let p = top.get_pixel(top_x, top_y).unwrap();
+            let mut bottom_pixel = bottom.get_pixel(x + top_x, y + top_y).unwrap();
             bottom_pixel.blend(&p);
 
             bottom.put_pixel(x + top_x, y + top_y, bottom_pixel);
@@ -193,17 +193,17 @@ where
 }
 
 /// Fill the image with a linear vertical gradient
-/// 
+///
 /// This function assumes a linear color space.
-/// 
+///
 /// # Examples
 /// ```no_run
 /// use image::{Rgba, RgbaImage, Pixel};
-/// 
+///
 /// let mut img = RgbaImage::new(100, 100);
 /// let start = Rgba::from_slice(&[0, 128, 0, 0]);
 /// let end = Rgba::from_slice(&[255, 255, 255, 255]);
-/// 
+///
 /// image::imageops::vertical_gradient(&mut img, start, end);
 /// img.save("vertical_gradient.png").unwrap();
 pub fn vertical_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
@@ -218,7 +218,7 @@ where
             let height = <S::Ratio as NumCast>::from(img.height() - 1).unwrap();
             S::lerp(a, b, y / height)
         });
-        
+
         for x in 0..img.width() {
             img.put_pixel(x, y, pixel);
         }
@@ -226,17 +226,17 @@ where
 }
 
 /// Fill the image with a linear horizontal gradient
-/// 
+///
 /// This function assumes a linear color space.
 ///
 /// # Examples
 /// ```no_run
 /// use image::{Rgba, RgbaImage, Pixel};
-/// 
+///
 /// let mut img = RgbaImage::new(100, 100);
 /// let start = Rgba::from_slice(&[0, 128, 0, 0]);
 /// let end = Rgba::from_slice(&[255, 255, 255, 255]);
-/// 
+///
 /// image::imageops::horizontal_gradient(&mut img, start, end);
 /// img.save("horizontal_gradient.png").unwrap();
 pub fn horizontal_gradient<S, P, I>(img: &mut I, start: &P, stop: &P)
@@ -251,7 +251,7 @@ where
             let width = <S::Ratio as NumCast>::from(img.width() - 1).unwrap();
             S::lerp(a, b, x / width)
         });
-        
+
         for y in 0..img.height() {
             img.put_pixel(x, y, pixel);
         }
@@ -272,7 +272,7 @@ where
 
     for top_y in 0..range_height {
         for top_x in 0..range_width {
-            let p = top.get_pixel(top_x, top_y);
+            let p = top.get_pixel(top_x, top_y).unwrap();
             bottom.put_pixel(x + top_x, y + top_y, p);
         }
     }
@@ -292,11 +292,11 @@ mod tests {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(16, 16, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 0, 0);
-        assert!(*target.get_pixel(0, 0) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(15, 0) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(16, 0) == Rgb([0u8, 0, 0]));
-        assert!(*target.get_pixel(0, 15) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(0, 16) == Rgb([0u8, 0, 0]));
+        assert!(target.get_pixel(0, 0) == Some(Rgb([255u8, 0, 0])));
+        assert!(target.get_pixel(15, 0) == Some(Rgb([255u8, 0, 0])));
+        assert!(target.get_pixel(16, 0) == Some(Rgb([0u8, 0, 0])));
+        assert!(target.get_pixel(0, 15) == Some(Rgb([255u8, 0, 0])));
+        assert!(target.get_pixel(0, 16) == Some(Rgb([0u8, 0, 0])));
     }
 
     #[test]
@@ -305,9 +305,9 @@ mod tests {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 1, 1);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([255u8, 0, 0]));
-        assert!(*target.get_pixel(31, 31) == Rgb([255u8, 0, 0]));
+        assert!(target.get_pixel(0, 0) == Some(Rgb([0, 0, 0])));
+        assert!(target.get_pixel(1, 1) == Some(Rgb([255u8, 0, 0])));
+        assert!(target.get_pixel(31, 31) == Some(Rgb([255u8, 0, 0])));
     }
 
     #[test]
@@ -317,9 +317,9 @@ mod tests {
         let mut target = ImageBuffer::new(32, 32);
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         overlay(&mut target, &source, 33, 33);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(31, 31) == Rgb([0, 0, 0]));
+        assert!(target.get_pixel(0, 0) == Some(Rgb([0, 0, 0])));
+        assert!(target.get_pixel(1, 1) == Some(Rgb([0, 0, 0])));
+        assert!(target.get_pixel(31, 31) == Some(Rgb([0, 0, 0])));
     }
 
     #[test]
@@ -329,9 +329,9 @@ mod tests {
         let source = ImageBuffer::from_pixel(32, 32, Rgb([255u8, 0, 0]));
         // Overflows to 'sane' coordinates but top is larger than bot.
         overlay(&mut target, &source, u32::max_value() - 31, u32::max_value() - 31);
-        assert!(*target.get_pixel(0, 0) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(1, 1) == Rgb([0, 0, 0]));
-        assert!(*target.get_pixel(15, 15) == Rgb([0, 0, 0]));
+        assert!(target.get_pixel(0, 0) == Some(Rgb([0, 0, 0])));
+        assert!(target.get_pixel(1, 1) == Some(Rgb([0, 0, 0])));
+        assert!(target.get_pixel(15, 15) == Some(Rgb([0, 0, 0])));
     }
 
     use super::{horizontal_gradient, vertical_gradient};
@@ -346,8 +346,8 @@ mod tests {
 
         horizontal_gradient(&mut img, &start, &end);
 
-        assert_eq!(img.get_pixel(0, 0), &start);
-        assert_eq!(img.get_pixel(img.width() - 1, 0), &end);
+        assert_eq!(img.get_pixel(0, 0), Some(start));
+        assert_eq!(img.get_pixel(img.width() - 1, 0), Some(end));
     }
 
     #[test]
@@ -360,8 +360,8 @@ mod tests {
 
         vertical_gradient(&mut img, &start, &end);
 
-        assert_eq!(img.get_pixel(0, 0), &start);
-        assert_eq!(img.get_pixel(0, img.height() - 1), &end);
+        assert_eq!(img.get_pixel(0, 0), Some(start));
+        assert_eq!(img.get_pixel(0, img.height() - 1), Some(end));
     }
 
     #[test]

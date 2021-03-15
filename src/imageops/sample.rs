@@ -259,7 +259,7 @@ where
             let mut t = (0.0, 0.0, 0.0, 0.0);
 
             for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(left + i as u32, y);
+                let p = image.get_pixel(left + i as u32, y).unwrap();
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
@@ -342,7 +342,7 @@ where
             let mut t = (0.0, 0.0, 0.0, 0.0);
 
             for (i, w) in ws.iter().enumerate() {
-                let p = image.get_pixel(x, left + i as u32);
+                let p = image.get_pixel(x, left + i as u32).unwrap();
 
                 let (k1, k2, k3, k4) = p.channels4();
                 let vec: (f32, f32, f32, f32) = (
@@ -498,7 +498,7 @@ where
 
     for y in bottom..top {
         for x in left..right {
-            let k = image.get_pixel(x, y);
+            let k = image.get_pixel(x, y).unwrap();
             sum.add_pixel(k);
         }
     }
@@ -533,10 +533,10 @@ where
     let mut sum_left = ThumbnailSum::zeroed();
     let mut sum_right = ThumbnailSum::zeroed();
     for x in bottom..top {
-        let k_left = image.get_pixel(left, x);
+        let k_left = image.get_pixel(left, x).unwrap();
         sum_left.add_pixel(k_left);
 
-        let k_right = image.get_pixel(left + 1, x);
+        let k_right = image.get_pixel(left + 1, x).unwrap();
         sum_right.add_pixel(k_right);
     }
 
@@ -576,10 +576,10 @@ where
     let mut sum_bot = ThumbnailSum::zeroed();
     let mut sum_top = ThumbnailSum::zeroed();
     for x in left..right {
-        let k_bot = image.get_pixel(x, bottom);
+        let k_bot = image.get_pixel(x, bottom).unwrap();
         sum_bot.add_pixel(k_bot);
 
-        let k_top = image.get_pixel(x, bottom + 1);
+        let k_top = image.get_pixel(x, bottom + 1).unwrap();
         sum_top.add_pixel(k_top);
     }
 
@@ -614,10 +614,10 @@ where
     P: Pixel<Subpixel = S>,
     S: Primitive + Enlargeable,
 {
-    let k_bl = image.get_pixel(left,     bottom    ).channels4();
-    let k_tl = image.get_pixel(left,     bottom + 1).channels4();
-    let k_br = image.get_pixel(left + 1, bottom    ).channels4();
-    let k_tr = image.get_pixel(left + 1, bottom + 1).channels4();
+    let k_bl = image.get_pixel(left,     bottom    ).unwrap().channels4();
+    let k_tl = image.get_pixel(left,     bottom + 1).unwrap().channels4();
+    let k_br = image.get_pixel(left + 1, bottom    ).unwrap().channels4();
+    let k_tr = image.get_pixel(left + 1, bottom + 1).unwrap().channels4();
 
     let frac_v = fraction_vertical;
     let frac_h = fraction_horizontal;
@@ -689,7 +689,7 @@ where
                 let x0 = x as isize + a;
                 let y0 = y as isize + b;
 
-                let p = image.get_pixel(x0 as u32, y0 as u32);
+                let p = image.get_pixel(x0 as u32, y0 as u32).unwrap();
 
                 let (k1, k2, k3, k4) = p.channels4();
 
@@ -805,8 +805,8 @@ where
 
     for y in 0..height {
         for x in 0..width {
-            let a = image.get_pixel(x, y);
-            let b = tmp.get_pixel_mut(x, y);
+            let a = image.get_pixel(x, y).unwrap();
+            let b = tmp.get_pixel_mut(x, y).unwrap();
 
             let p = a.map2(b, |c, d| {
                 let ic: i32 = NumCast::from(c).unwrap();

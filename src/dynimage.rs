@@ -996,8 +996,12 @@ impl GenericImageView for DynamicImage {
         dynamic_map!(*self, ref p -> p.bounds())
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> color::Rgba<u8> {
-        dynamic_map!(*self, ref p -> p.get_pixel(x, y).to_rgba().into_color())
+    fn get_pixel(&self, x: u32, y: u32) -> Option<Self::Pixel> {
+        dynamic_map!(*self, ref p -> if let Some(pix) = p.get_pixel(x, y) {
+            Some(pix.to_rgba().into_color())
+        } else {
+            None
+        })
     }
 
     fn inner(&self) -> &Self::InnerImageView {
@@ -1040,7 +1044,7 @@ impl GenericImage for DynamicImage {
     }
 
     /// DEPRECATED: Do not use is function: It is unimplemented!
-    fn get_pixel_mut(&mut self, _: u32, _: u32) -> &mut color::Rgba<u8> {
+    fn get_pixel_mut(&mut self, _: u32, _: u32) -> Option<&mut color::Rgba<u8>> {
         unimplemented!()
     }
 
@@ -1260,7 +1264,7 @@ pub fn write_buffer_with_format<W, F>(
     format: F,
 ) -> ImageResult<()>
 where
-    W: std::io::Write,
+    W: Write,
     F: Into<ImageOutputFormat>,
 {
     // thin wrapper function to strip generics

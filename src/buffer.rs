@@ -715,15 +715,13 @@ where
     }
 
     /// Gets a reference to the pixel at location `(x, y)`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
-    pub fn get_pixel(&self, x: u32, y: u32) -> &P {
-        match self.pixel_indices(x, y) {
-            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
-            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
+    pub fn get_pixel(&self, x: u32, y: u32) -> Option<P> {
+        if let Some(pixel_indices) = self.pixel_indices(x, y) {
+            if let Some(p) = self.data.get(pixel_indices) {
+                return Some(*<P as Pixel>::from_slice(p));
+            }
         }
+        None
     }
 
     /// Test that the image fits inside the buffer.
@@ -866,24 +864,20 @@ where
     }
 
     /// Gets a reference to the mutable pixel at location `(x, y)`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
-    pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
-        match self.pixel_indices(x, y) {
-            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
-            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
+    pub fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut P> {
+        if let Some(pixel_indices) = self.pixel_indices(x, y) {
+            if let Some(p) = self.data.get_mut(pixel_indices) {
+                return Some(<P as Pixel>::from_slice_mut(p));
+            }
         }
+        None
     }
 
     /// Puts a pixel at location `(x, y)`
-    ///
-    /// # Panics
-    ///
-    /// Panics if `(x, y)` is out of the bounds `(width, height)`.
     pub fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        *self.get_pixel_mut(x, y) = pixel
+        if let Some(p) = self.get_pixel_mut(x, y) {
+            *p = pixel;
+        }
     }
 }
 
@@ -896,7 +890,7 @@ where
     /// Saves the buffer to a file at the path specified.
     ///
     /// The image format is derived from the file extension.
-    /// Currently only jpeg, png, ico, pnm, bmp and 
+    /// Currently only jpeg, png, ico, pnm, bmp and
     /// tiff files are supported.
     pub fn save<Q>(&self, path: Q) -> ImageResult<()>
     where
@@ -1018,7 +1012,10 @@ where
     type Output = P;
 
     fn index(&self, (x, y): (u32, u32)) -> &P {
-        self.get_pixel(x, y)
+        match self.pixel_indices(x, y) {
+            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            Some(pixel_indices) => <P as Pixel>::from_slice(&self.data[pixel_indices]),
+        }
     }
 }
 
@@ -1029,7 +1026,10 @@ where
     Container: Deref<Target = [P::Subpixel]> + DerefMut,
 {
     fn index_mut(&mut self, (x, y): (u32, u32)) -> &mut P {
-        self.get_pixel_mut(x, y)
+        match self.pixel_indices(x, y) {
+            None => panic!("Image index {:?} out of bounds {:?}", (x, y), (self.width, self.height)),
+            Some(pixel_indices) => <P as Pixel>::from_slice_mut(&mut self.data[pixel_indices]),
+        }
     }
 }
 
@@ -1065,8 +1065,8 @@ where
         (0, 0, self.width, self.height)
     }
 
-    fn get_pixel(&self, x: u32, y: u32) -> P {
-        *self.get_pixel(x, y)
+    fn get_pixel(&self, x: u32, y: u32) -> Option<P> {
+        self.get_pixel(x, y)
     }
 
     /// Returns the pixel located at (x, y), ignoring bounds checking.
@@ -1089,12 +1089,14 @@ where
 {
     type InnerImage = Self;
 
-    fn get_pixel_mut(&mut self, x: u32, y: u32) -> &mut P {
+    fn get_pixel_mut(&mut self, x: u32, y: u32) -> Option<&mut P> {
         self.get_pixel_mut(x, y)
     }
 
     fn put_pixel(&mut self, x: u32, y: u32, pixel: P) {
-        *self.get_pixel_mut(x, y) = pixel
+        if let Some(p) = self.get_pixel_mut(x, y) {
+            *p = pixel;
+        }
     }
 
     /// Puts a pixel at location (x, y), ignoring bounds checking.
@@ -1109,14 +1111,16 @@ where
     ///
     /// DEPRECATED: This method will be removed. Blend the pixel directly instead.
     fn blend_pixel(&mut self, x: u32, y: u32, p: P) {
-        self.get_pixel_mut(x, y).blend(&p)
+        if let Some(pixel) = self.get_pixel_mut(x, y) {
+            pixel.blend(&p);
+        }
     }
 
     fn copy_within(&mut self, source: Rect, x: u32, y: u32) -> bool {
         let Rect { x: sx, y: sy, width, height } = source;
         let dx = x;
         let dy = y;
-        assert!(sx < self.width() && dx < self.width()); 
+        assert!(sx < self.width() && dx < self.width());
         assert!(sy < self.height() && dy < self.height());
         if self.width() - dx.max(sx) < width || self.height() - dy.max(sy) < height  {
             return false;
@@ -1149,8 +1153,8 @@ where
     }
 }
 
-// FIXME non-generic `core::slice::copy_within` implementation used by `ImageBuffer::copy_within`. The implementation is rewritten 
-//  here due to minimum rust version support(MSRV). Image has a MSRV of 1.34 as of writing this while `core::slice::copy_within` 
+// FIXME non-generic `core::slice::copy_within` implementation used by `ImageBuffer::copy_within`. The implementation is rewritten
+//  here due to minimum rust version support(MSRV). Image has a MSRV of 1.34 as of writing this while `core::slice::copy_within`
 //  has been stabilized in 1.37.
 #[inline(always)]
 fn slice_copy_within<T: Copy>(slice: &mut [T], Range { start: src_start, end: src_end }: Range<usize>, dest: usize) {
@@ -1301,12 +1305,12 @@ where
     /// ```no_run
     /// use image::buffer::ConvertBuffer;
     /// use image::GrayImage;
-    /// 
+    ///
     /// let image_path = "examples/fractal.png";
     /// let image = image::open(&image_path)
     ///     .expect("Open file failed")
     ///     .to_rgba();
-    /// 
+    ///
     /// let gray_image: GrayImage = image.convert();
     /// ```
     fn convert(&self) -> ImageBuffer<ToType, Vec<ToType::Subpixel>> {
@@ -1360,7 +1364,7 @@ mod test {
             let b = a.get_mut(3 * 10).unwrap();
             *b = 255;
         }
-        assert_eq!(a.get_pixel(0, 1)[0], 255)
+        assert_eq!(a.get_pixel(0, 1).unwrap()[0], 255)
     }
 
     #[test]
@@ -1368,7 +1372,7 @@ mod test {
         let mut a: RgbImage = ImageBuffer::new(10, 10);
         {
             let val = a.pixels_mut().next().unwrap();
-            *val = color::Rgb([42, 0, 0]);
+            *val = Rgb([42, 0, 0]);
         }
         assert_eq!(a.data[0], 42)
     }
@@ -1466,7 +1470,7 @@ mod benchmarks {
             let mut sum: usize = 0;
             for y in 0..1000 {
                 for x in 0..1000 {
-                    let pixel = image.get_pixel(x, y);
+                    let pixel = image[(x, y)];
                     sum = sum.wrapping_add(pixel[0] as usize);
                     sum = sum.wrapping_add(pixel[1] as usize);
                     sum = sum.wrapping_add(pixel[2] as usize);
@@ -1493,7 +1497,7 @@ mod benchmarks {
             let mut sum: usize = 0;
             for x in 0..1000 {
                 for y in 0..1000 {
-                    let pixel = image.get_pixel(x, y);
+                    let pixel = image.get_pixel(x, y).unwrap();
                     sum = sum.wrapping_add(pixel[0] as usize);
                     sum = sum.wrapping_add(pixel[1] as usize);
                     sum = sum.wrapping_add(pixel[2] as usize);

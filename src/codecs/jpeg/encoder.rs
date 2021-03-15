@@ -813,13 +813,13 @@ fn rgb_to_ycbcr<P: Pixel>(pixel: P) -> (u8, u8, u8) {
 /// otherwise the closest pixel in the image
 #[inline]
 fn pixel_at_or_near<I: GenericImageView>(source: &I, x: u32, y: u32) -> I::Pixel {
-    if source.in_bounds(x, y) {
-        source.get_pixel(x, y)
+    if let Some(pixel) = source.get_pixel(x, y) {
+        pixel
     } else {
         source.get_pixel(
             x.min(source.width() - 1),
             y.min(source.height() - 1),
-        )
+        ).unwrap()
     }
 }
 

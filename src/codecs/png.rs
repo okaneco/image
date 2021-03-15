@@ -386,7 +386,9 @@ impl<R: Read> ApngDecoder<R> {
             BlendOp::Over => {
                 // TODO: investigate speed, speed-ups, and bounds-checks.
                 for (x, y, p) in source.enumerate_pixels() {
-                    self.current.get_pixel_mut(x + px, y + py).blend(p);
+                    if let Some(pixel) = self.current.get_pixel_mut(x + px, y + py) {
+                        pixel.blend(p);
+                    }
                 }
             }
         }
